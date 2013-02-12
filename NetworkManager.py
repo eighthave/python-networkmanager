@@ -43,7 +43,15 @@ class NMDbusInterface(object):
         if isinstance(val, (dbus.Array, list, tuple)):
             return [self.unwrap(x) for x in val]
         if isinstance(val, (dbus.Dictionary, dict)):
-            return dict([(self.unwrap(x), self.unwrap(y)) for x,y in val.items()])
+            d = dict([(self.unwrap(x), self.unwrap(y)) for x,y in val.items()])
+            keys = d.keys()
+            if 'ssid' in keys:
+                d['ssid'] = "".join([chr(x) for x in d['ssid']])
+            if 'bssid' in keys:
+                d['bssid'] = ":".join(['%02X'%b for b in d['bssid']])
+            if 'mac-address' in keys:
+                d['mac-address'] = ":".join(['%02X'%b for b in d['mac-address']])
+            return d
         if isinstance(val, dbus.ObjectPath):
             if val.startswith('/org/freedesktop/NetworkManager/'):
                 classname = val.split('/')[4]
