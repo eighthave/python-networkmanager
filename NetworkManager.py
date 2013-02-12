@@ -40,17 +40,29 @@ class NMDbusInterface(object):
     def unwrap(self, val):
         if isinstance(val, dbus.ByteArray):
             return "".join([str(x) for x in val])
-        if isinstance(val, (dbus.Array, list, tuple)):
+        if isinstance(val, dbus.Array):
+            if val.signature == dbus.Signature('y'):
+                # the AccessPoint.Ssid is a string stored as a dbus.Array of
+                # dbus.Bytes, so convert to a string here. See below for
+                # handling of 'bssid' and 'mac-address' in Settings
+                return "".join([str(x) for x in val])
+            else:
+                return [self.unwrap(x) for x in val]
+        if isinstance(val, (list, tuple)):
             return [self.unwrap(x) for x in val]
         if isinstance(val, (dbus.Dictionary, dict)):
-            d = dict([(self.unwrap(x), self.unwrap(y)) for x,y in val.items()])
-            keys = d.keys()
-            if 'ssid' in keys:
-                d['ssid'] = "".join([chr(x) for x in d['ssid']])
-            if 'bssid' in keys:
-                d['bssid'] = ":".join(['%02X'%b for b in d['bssid']])
-            if 'mac-address' in keys:
-                d['mac-address'] = ":".join(['%02X'%b for b in d['mac-address']])
+            d = dict([(self.unwrap(x), y) for x,y in val.items()])
+            for k,v in d.items():
+                # 'bssid' and 'mac-address' in Settings are stored each as a
+                # dbus.Array of dbus.Bytes, where each dbus.Byte is a byte of
+                # the address.  This conflicts with the storage format of
+                # AccessPoint.Ssid, which is a string stored as a dbus.Array
+                # of dbus.Bytes, so handle 'bssid' and 'mac-address'
+                # separately
+                if k == 'bssid' or k == 'mac-address':
+                    d[k] = ":".join(['%02X'%b for b in v])
+                else:
+                    d[k] = self.unwrap(v)
             return d
         if isinstance(val, dbus.ObjectPath):
             if val.startswith('/org/freedesktop/NetworkManager/'):
